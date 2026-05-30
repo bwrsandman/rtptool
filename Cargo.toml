@@ -1,0 +1,28 @@
+[package]
+name = "rtptool"
+version = "0.1.0"
+edition = "2024"
+description = "Library and CLI for inspecting, extracting, and applying RTPatch (.rtp) patches"
+license = "MIT"
+repository = "https://github.com/bwrsandman/rtptool"
+readme = "README.md"
+keywords = ["rtp", "patch", "binary-patch", "reverse-engineering"]
+categories = ["command-line-utilities", "encoding", "parser-implementations"]
+
+[lib]
+name = "rtptool"
+path = "src/lib.rs"
+
+[[bin]]
+name = "rtptool"
+path = "src/bin/rtpatch.rs"
+required-features = ["cli"]
+
+[features]
+default = ["cli"]
+cli = ["dep:clap"]
+
+[dependencies]
+thiserror = "2"
+crc32fast = "1"
+clap = { version = "4", features = ["derive"], optional = true }
