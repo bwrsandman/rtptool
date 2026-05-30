@@ -84,7 +84,7 @@ Applying 12 MODIFY patch(es):
   [OK]    engine.dll  446549 B -> 446549 B  (./v1.1/engine.dll)
   [OK]    game.exe  8500623 B -> 9447947 B  (./v1.1/game.exe)
   [SKIP]  driver.dll -- source not found: ./v1.0/driver.dll
-  [SKIP]  loader.dll -- CRC mismatch (...); use --no-crc to apply anyway
+  [SKIP]  loader.dll -- checksum mismatch (...); use --no-checksum to apply anyway
 
 Done: 10 patched, 2 skipped, 0 errors
 ```
@@ -95,7 +95,7 @@ Done: 10 patched, 2 skipped, 0 errors
 |---|---|
 | `--file <name>` | Only patch files whose name contains `<name>` (case-insensitive substring) |
 | `--out-file <path>` | Write single-file output to this exact path (requires `--file` to match one record) |
-| `--no-crc` | Skip source-file CRC validation |
+| `--no-checksum` | Skip source-file checksum validation |
 
 **Patch a single file:**
 
@@ -113,10 +113,10 @@ $ rtptool apply update.rtp \
     --out-file ./game_patched.exe
 ```
 
-**Skip CRC check** (use when source files have been modified):
+**Skip checksum** (use when source files have been modified):
 
 ```
-$ rtptool apply update.rtp --source ./v1.0 --output ./v1.1 --no-crc
+$ rtptool apply update.rtp --source ./v1.0 --output ./v1.1 --no-checksum
 ```
 
 ---
@@ -157,7 +157,7 @@ $ rtptool extract update.rtp --out ./diffs --file engine.dll
 | Message | Meaning |
 |---|---|
 | `source not found: ./v1.0/foo.dll` | Source file missing from `--source` directory |
-| `CRC mismatch (expected 0x…, got 0x…)` | Source file doesn't match the version the patch was built for; pass `--no-crc` to apply anyway |
+| `checksum mismatch (expected 0x…, got 0x…)` | Source file checksum doesn't match — wrong version; pass `--no-checksum` to apply anyway |
 | `bad diff magic: 0x… (want 0xB59C)` | Corrupt or truncated patch file |
 | `unknown opcode 0x… at stream offset …` | Decompressed diff is corrupt |
 
@@ -205,9 +205,12 @@ pub fn patch_file(
     patch: &RtpPatch,
     record: &FileRecord,
     src_data: &[u8],
-    check_crc: bool,
+    check_sum: bool,
 ) -> Result<Vec<u8>, RtpError>;
 
-// Compute 30-bit masked CRC32 (as stored in patch entry descriptors)
-pub fn crc32_masked(data: &[u8]) -> u32;
+// 31-bit rolling checksum (w1 field in entry descriptors)
+pub fn checksum_w1(data: &[u8]) -> u32;
+
+// 30-bit rolling checksum (w2 field, used for source validation)
+pub fn checksum_w2(data: &[u8]) -> u32;
 ```

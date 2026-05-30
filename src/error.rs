@@ -25,11 +25,11 @@ pub enum RtpError {
     SourceNotFound { filename: String, path: PathBuf },
 
     #[error(
-        "CRC mismatch for '{filename}': \
+        "checksum mismatch for '{filename}': \
          patch expects 0x{expected:08x}, source computed 0x{actual:08x} \
          — wrong source version?"
     )]
-    CrcMismatch {
+    ChecksumMismatch {
         filename: String,
         expected: u32,
         actual: u32,

@@ -9,33 +9,46 @@ pub use error::RtpError;
 pub use parser::parse;
 pub use types::{EntryDescriptor, FileRecord, RecordType, RtpHeader, RtpPatch};
 
-use crc32fast::Hasher;
+/// 31-bit rolling checksum (w1).
+/// Each byte: w1 = rotl8(w1 ^ c) within 31 bits.
+pub fn checksum_w1(data: &[u8]) -> u32 {
+    let mut w: u32 = 0;
+    for &c in data {
+        let t = w ^ c as u32;
+        w = ((t << 8) | (t >> 23)) & 0x7FFF_FFFF;
+    }
+    w
+}
 
-/// Compute CRC32 of `data` masked to 30 bits (as stored in entry descriptors).
-pub fn crc32_masked(data: &[u8]) -> u32 {
-    let mut h = Hasher::new();
-    h.update(data);
-    const CRC_MASK: u32 = 0x3FFF_FFFF;
-    h.finalize() & CRC_MASK
+/// 30-bit rolling checksum (w2).
+/// Each byte: w2 = rotl8(w2 ^ c) within 30 bits.
+/// This is the value stored in entry descriptors (block10[6..10] & 0x3FFFFFFF).
+pub fn checksum_w2(data: &[u8]) -> u32 {
+    let mut w: u32 = 0;
+    for &c in data {
+        let t = w ^ c as u32;
+        w = ((t << 8) | (t >> 22)) & 0x3FFF_FFFF;
+    }
+    w
 }
 
 /// High-level: decompress and apply a MODIFY record to a source file.
 ///
-/// Returns the patched bytes. Validates the source CRC if `check_crc` is true.
+/// Returns the patched bytes. Validates the source checksum if `check_sum` is true.
 pub fn patch_file(
     patch: &RtpPatch,
     record: &FileRecord,
     src_data: &[u8],
-    check_crc: bool,
+    check_sum: bool,
 ) -> Result<Vec<u8>, RtpError> {
-    if check_crc
-        && let Some(e) = record.src_entries.first().filter(|e| e.crc32 != 0)
+    if check_sum
+        && let Some(e) = record.src_entries.first().filter(|e| e.w2 != 0)
     {
-        let actual = crc32_masked(src_data);
-        if actual != e.crc32 {
-            return Err(RtpError::CrcMismatch {
+        let actual = checksum_w2(src_data);
+        if actual != e.w2 {
+            return Err(RtpError::ChecksumMismatch {
                 filename: record.filename.clone(),
-                expected: e.crc32,
+                expected: e.w2,
                 actual,
             });
         }

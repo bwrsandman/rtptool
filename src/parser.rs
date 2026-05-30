@@ -21,8 +21,6 @@ const REC_HAS_PATHS: u16        = 0x0200;
 // option_flags bits for seek/checksum
 const OPT_HAS_SEEK: u16 = 0x00C0;
 
-// CRC mask (30 bits as stored in entry descriptors)
-const CRC_MASK: u32 = 0x3FFF_FFFF;
 
 pub fn parse(data: Vec<u8>) -> Result<RtpPatch, RtpError> {
     let mut r = Reader::new(&data);
@@ -234,12 +232,16 @@ fn read_entry(r: &mut Reader<'_>, extra_mode: bool) -> Result<EntryDescriptor, R
     let block24 = r.read_exact(24)?;
     let block10 = r.read_exact(10)?;
     let file_size = u32::from_le_bytes(block24[16..20].try_into().unwrap());
-    let crc32 = u32::from_le_bytes(block10[6..10].try_into().unwrap()) & CRC_MASK;
+    // block10: [b0][b1][w1: 4 LE][w2: 4 LE]
+    let b0 = block10[0];
+    let b1 = block10[1];
+    let w1 = u32::from_le_bytes(block10[2..6].try_into().unwrap()) & 0x7FFF_FFFF;
+    let w2 = u32::from_le_bytes(block10[6..10].try_into().unwrap()) & 0x3FFF_FFFF;
     if extra_mode {
         r.read_exact(8)?;
         r.lp_string()?;
     }
-    Ok(EntryDescriptor { file_size, crc32 })
+    Ok(EntryDescriptor { file_size, b0, b1, w1, w2 })
 }
 
 fn read_entries(

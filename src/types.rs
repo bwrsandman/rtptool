@@ -37,11 +37,18 @@ impl RecordType {
 }
 
 /// Source or destination file version descriptor (§6.3).
+/// 10-byte checksum block layout: [b0][b1][w1: 4 LE][w2: 4 LE]
 #[derive(Debug, Clone, Default)]
 pub struct EntryDescriptor {
     pub file_size: u32,
-    /// CRC32 stored masked to 30 bits.
-    pub crc32: u32,
+    /// Weak length accumulator mod 31.
+    pub b0: u8,
+    /// Weak length accumulator mod 30.
+    pub b1: u8,
+    /// 31-bit rolling checksum (rotl8 within 31 bits), top bit masked.
+    pub w1: u32,
+    /// 30-bit rolling checksum (rotl8 within 30 bits), top 2 bits masked.
+    pub w2: u32,
 }
 
 #[derive(Debug, Clone)]

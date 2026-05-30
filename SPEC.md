@@ -200,13 +200,22 @@ Each source/destination entry describes one file version:
 
 | Part         | Size | Contents |
 |--------------|------|----------|
-| descriptor   | 24   | short (8.3) name, attribute flags, and the **file size** (u32) |
-| checksum blk | 10   | flags and a **CRC32** (stored masked to its low 30 bits) |
+| descriptor   | 24   | short (8.3) name, attribute flags, and the **file size** (u32 at offset 16) |
+| checksum blk | 10   | dual rolling checksum — see layout below |
 | timestamps   | 8    | present only in extra mode |
 | alt-path     | lp_string | present only in extra mode |
 
+**Checksum block layout (10 bytes):**
+
+| Offset | Size | Field | Description |
+|--------|------|-------|-------------|
+| 0      | 1    | `b0`  | Weak length accumulator mod 31 |
+| 1      | 1    | `b1`  | Weak length accumulator mod 30 |
+| 2      | 4 LE | `w1`  | 31-bit rolling checksum; high bit reserved (mask `0x7FFFFFFF`) |
+| 6      | 4 LE | `w2`  | 30-bit rolling checksum; high 2 bits reserved (mask `0x3FFFFFFF`) |
+
 The reconstructed output size is the file-size field of the first destination
-entry (MODIFY) or first source entry (NEW). The CRC is the source-validation
+entry (MODIFY) or first source entry (NEW). `w2` is the source-validation
 value (§10).
 
 ---
@@ -347,12 +356,29 @@ for each opcode:
 
 ## 10. Source validation
 
-Each source entry carries a CRC (stored masked to 30 bits). An applier should
-verify the on-disk source against this value before applying a record; a
-mismatch indicates the wrong source version and the record should be skipped
-rather than applied to incorrect data. The destination size is fixed by the
-entry descriptor, so a wrong source can still yield a correctly-sized but
-incorrect result if validation is skipped.
+Each source entry carries a dual rolling checksum (§6.3). An applier should
+verify the on-disk source `w2` value before applying a record; a mismatch
+indicates the wrong source version and the record should be skipped rather than
+applied to incorrect data. The destination size is fixed by the entry
+descriptor, so a wrong source can still yield a correctly-sized but incorrect
+result if validation is skipped.
+
+### Rolling checksum algorithm
+
+Both `w1` and `w2` are computed identically, differing only in bit width.
+Starting from zero, for each byte `c` of the file:
+
+```
+w = rotl8(w ^ c)  within N bits
+```
+
+Where `rotl8(x)` within N bits = `((x << 8) | (x >> (N - 8))) & ((1 << N) - 1)`.
+
+- `w1`: N = 31, mask `0x7FFFFFFF`
+- `w2`: N = 30, mask `0x3FFFFFFF`
+
+The weak length bytes `b0` and `b1` accumulate `(chunk_length + b) mod N` per
+chunk and provide a fast pre-filter before the full rolling check.
 
 ---
 
@@ -360,6 +386,5 @@ incorrect result if validation is skipped.
 
 - The exact meaning of several reserved header words and the combine identifier.
 - The 5-byte (count 4) VLI form is decodable but rarely, if ever, used.
-- The precise CRC32 parameters used for source validation.
 - Multi-source records (two or more sources, enabling the per-opcode source
   selector) are representable but uncommon.

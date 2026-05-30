@@ -57,9 +57,9 @@ enum Command {
         /// For single-file mode: write output to this exact path instead of --output/<name>.
         #[arg(long)]
         out_file: Option<PathBuf>,
-        /// Skip CRC validation of source files.
+        /// Skip checksum validation of source files.
         #[arg(long)]
-        no_crc: bool,
+        no_checksum: bool,
     },
 }
 
@@ -196,7 +196,7 @@ fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             }
         }
 
-        Command::Apply { rtp_file, source, output, file, out_file, no_crc } => {
+        Command::Apply { rtp_file, source, output, file, out_file, no_checksum } => {
             let p = load_patch(&rtp_file)?;
             fs::create_dir_all(&output)?;
 
@@ -247,7 +247,7 @@ fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
                     }
                 };
 
-                match rtptool::patch_file(&p, rec, &src_data, !no_crc) {
+                match rtptool::patch_file(&p, rec, &src_data, !no_checksum) {
                     Ok(patched) => {
                         if let Some(Err(e)) = dst_path.parent().map(fs::create_dir_all) {
                             eprintln!("  [ERR]   {} -- create dir: {e}", rec.filename);
@@ -268,11 +268,11 @@ fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
                             }
                         }
                     }
-                    Err(RtpError::CrcMismatch { filename, expected, actual }) => {
+                    Err(RtpError::ChecksumMismatch { filename, expected, actual }) => {
                         eprintln!(
                             "  [SKIP]  {filename} -- CRC mismatch \
                              (expected 0x{expected:08x}, got 0x{actual:08x}); \
-                             use --no-crc to apply anyway"
+                             use --no-checksum to apply anyway"
                         );
                         skip += 1;
                     }

@@ -24,5 +24,4 @@ cli = ["dep:clap"]
 
 [dependencies]
 thiserror = "2"
-crc32fast = "1"
 clap = { version = "4", features = ["derive"], optional = true }
